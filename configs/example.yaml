@@ -1,0 +1,8 @@
+run_name: smoke_public
+tasks: [type, voi, acq]
+input_mode: midslice  # or volume for 3D track
+models: [resnet18]
+optimizer: adamw
+early_stop_metric: val_balanced_accuracy
+composite: {in_domain: 0.7, ood_type: 0.3}
+notes: Example config for the public smoke harness. Point data_root at synthetic fixtures only.
