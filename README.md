@@ -18,6 +18,7 @@ Clinical spine MRI corpora mix contrasts, FOVs, and orientations with unreliable
 | n (in-domain) | 2,646 scans / ~228 subjects |
 | Splits | locked subject-safe 80/10/10; 5-fold CV only inside train |
 | Input (2D track) | 1.5 mm resample → percentile clip + z-score → 3 mid-slices → 224² |
+| Input (3D track) | 1.5 mm resample → percentile clip + z-score → full volume 96×128×128 |
 | Optim | AdamW, class-weighted CE, early stop on val balanced accuracy |
 | Heads | separate per-task networks + multi-head shared backbone |
 | External | spine-generic type evaluation (site-stratified subject sample) |
@@ -27,7 +28,14 @@ Clinical spine MRI corpora mix contrasts, FOVs, and orientations with unreliable
 
 **Track A — fully evaluated (n=13):** AlexNet, GoogLeNet, ResNet-18, DenseNet-121, EfficientNet-B0, EfficientNet-V2-S, MobileNetV3-Small, VGG11, ConvNeXt-Tiny, CoAtNet-0, MaxViT-Tiny, Swin-Tiny, frozen brain-sequence linear probe.
 
-**Track B — same protocol, 3D + foundation extension:** full-volume 3D ResNet-18/50, 3D DenseNet-121; frozen mid-slice probes (DINOv2-B, SigLIP2-base, BiomedCLIP). Implemented under a shared registry; smoke-validated locally; full-scale server runs tracked separately from the published Track A ranking.
+**Track B — trained at full scale (n=6):** full-volume 3D ResNet-18/50, 3D DenseNet-121; frozen mid-slice probes (DINOv2-B, SigLIP2-base, BiomedCLIP). Implemented under a shared registry; lazy dispatch means a missing optional weight skips one model rather than aborting the bake-off. Weights: [`round2/`](https://huggingface.co/klasinlapaprechar/spine-mri-vision-model-training/tree/main/round2).
+
+Track B ran on the same 2,646-scan corpus and the same locked subject-safe splits as Track A, with two deliberate deviations:
+
+- **Single train/val fit, no cross-validation.** Compute was spent on breadth across 6 architectures rather than 5 folds each, so Track B has one `final.pt` per model/task and no fold checkpoints.
+- **`densenet121_3d` starts from random init.** No pretrained 3D DenseNet exists upstream, so it is not comparable to the MedicalNet-pretrained 3D ResNets on equal footing.
+
+Because the composite below is a 5-fold quantity, Track B numbers are not interchangeable with the Track A ranking and are not published here.
 
 ## Results (Track A)
 
