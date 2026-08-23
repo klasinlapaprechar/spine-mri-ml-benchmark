@@ -6,9 +6,21 @@ Supervised multi-task classification of heterogeneous spine MRI volumes (contras
 
 > Public aggregate results + synthetic smoke harness only. No clinical volumes, sidecars, or subject-level prediction dumps.
 
+This repo is **step 1** of a three-part portfolio: define the labeling problem and constraints here → explore a cheaper frozen-encoder alternative in [totalsegmentator-probe-study](https://github.com/klasinlapaprechar/totalsegmentator-probe-study) → see how labels plug into the production merge in [clinical-dicom2bids-demo](https://github.com/klasinlapaprechar/clinical-dicom2bids-demo).
+
 ## Problem
 
-Clinical spine MRI corpora mix contrasts, FOVs, and orientations with unreliable DICOM metadata. Expert labeling does not scale; automated scan-level typing is a prerequisite for dataset organization and downstream modeling.
+Clinical spine MRI arrives as heterogeneous DICOM with unreliable metadata. Before scans can be organized into research-ready BIDS, each volume needs scan-level labels for **type** (contrast), **acq** (orientation), and **VOI** (spine level). Expert labeling does not scale; automated typing is a prerequisite for dataset growth and downstream modeling.
+
+When sidecars are incomplete or wrong, **images** must carry the label — which motivates the supervised bake-off below.
+
+## Constraints
+
+These limits shaped every design choice in this benchmark (splits, metrics, and what we claim):
+
+- **Limited labelled categories** — We mainly have expert labels for a narrow contrast set (e.g. t2w / t2star). We do **not** have large labelled corpora for T1w, FLAIR, DWI, and other sequences, so a universal sequence classifier across all MRI types is not yet feasible.
+- **PHI / clinical data** — Protected health information slows iteration: secure access, due diligence, and careful handling before every experiment or export. Public artifacts here are aggregate metrics only.
+- **Class imbalance** — Some classes dominate (e.g. far more t2w than t2star). We report balanced accuracy and use class-weighted training; naive accuracy is misleading.
 
 ## Protocol
 
@@ -44,6 +56,8 @@ Full ranking: [`results/aggregate_model_ranking.csv`](results/aggregate_model_ra
 ## Interpretation
 
 T2w vs T2* is operationally hard for metadata heuristics and for human triage at scale; the bake-off shows a dedicated mid-slice CNN closes that gap under subject-safe + OOD evaluation. Label coverage is still incomplete for other contrasts (e.g. T1/FLAIR), so this is a **proof of concept for investment in expanded annotation**, not a claim of a universal sequence classifier.
+
+Before committing to full supervised training, we also asked whether frozen TotalSegmentator features already separate contrasts — see the **alternative** probe study: [totalsegmentator-probe-study](https://github.com/klasinlapaprechar/totalsegmentator-probe-study). Production integration of learned weights is described in [clinical-dicom2bids-demo](https://github.com/klasinlapaprechar/clinical-dicom2bids-demo).
 
 ## Smoke
 
