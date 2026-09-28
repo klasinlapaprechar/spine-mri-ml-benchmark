@@ -1,12 +1,6 @@
 # Spine MRI Model Benchmark
 
-Supervised multi-task classification of heterogeneous spine MRI volumes (contrast / spinal level / acquisition plane) under subject-safe evaluation and external-domain testing.
-
 **Weights:** [Hugging Face — spine-mri-vision-model-training](https://huggingface.co/klasinlapaprechar/spine-mri-vision-model-training)
-
-> Public aggregate results + synthetic smoke harness only. No clinical volumes, sidecars, or subject-level prediction dumps.
-
-This repo is **step 1** of a three-part portfolio: define the labeling problem and constraints here → explore a cheaper frozen-encoder alternative in [totalsegmentator-probe-study](https://github.com/klasinlapaprechar/totalsegmentator-probe-study) → see how labels plug into the production merge in [clinical-dicom2bids-demo](https://github.com/klasinlapaprechar/clinical-dicom2bids-demo).
 
 ## Problem
 
