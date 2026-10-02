@@ -1,39 +1,37 @@
 # Spine MRI Model Benchmark
 
-Supervised multi-task classification of heterogeneous spine MRI volumes (contrast / spinal level / acquisition plane) under subject-safe evaluation and external-domain testing.
-
 **Weights:** [Hugging Face — spine-mri-vision-model-training](https://huggingface.co/klasinlapaprechar/spine-mri-vision-model-training)
-
-> Public aggregate results + synthetic smoke harness only. No clinical volumes, sidecars, or subject-level prediction dumps.
-
-This repo is **step 1** of a three-part portfolio: define the labeling problem and constraints here → explore a cheaper frozen-encoder alternative in [totalsegmentator-probe-study](https://github.com/klasinlapaprechar/totalsegmentator-probe-study) → see how labels plug into the production merge in [clinical-dicom2bids-demo](https://github.com/klasinlapaprechar/clinical-dicom2bids-demo).
 
 ## Problem
 
-Clinical spine MRI arrives as heterogeneous DICOM with unreliable metadata. Before scans can be organized into research-ready BIDS, each volume needs scan-level labels for **type** (contrast), **acq** (orientation), and **VOI** (spine level). Expert labeling does not scale; automated typing is a prerequisite for dataset growth and downstream modeling.
+Clinical MRI data often arrives misclassifed. The fields that is most often misclassified are **contrast** (which sequence the scan is), **VOI** (which part of the spine it covers), and **acq** (which plane it was acquired in). When those labels are off, a researcher cannot tell what they are looking at without opening every scan by hand. That turns a dataset into a sorting problem before any real analysis can start.
 
-When sidecars are incomplete or wrong, **images** must carry the label — which motivates the supervised bake-off below.
+## Solution
+
+The first approach was to train vision models that ignore the labels and read the scan itself. We trained a range of architectures on the same task: look at the scan and predict contrast, VOI, and acq. 
 
 ## Constraints
 
-These limits shaped every design choice in this benchmark (splits, metrics, and what we claim):
+Two limits shaped what this benchmark can honestly claim.
 
-- **Limited labelled categories** — We mainly have expert labels for a narrow contrast set (e.g. t2w / t2star). We do **not** have large labelled corpora for T1w, FLAIR, DWI, and other sequences, so a universal sequence classifier across all MRI types is not yet feasible.
-- **PHI / clinical data** — Protected health information slows iteration: secure access, due diligence, and careful handling before every experiment or export. Public artifacts here are aggregate metrics only.
-- **Class imbalance** — Some classes dominate (e.g. far more t2w than t2star). We report balanced accuracy and use class-weighted training; naive accuracy is misleading.
+- **Not enough labels across MRI types.** Almost all of the labelled data covers a small set of contrasts (Only t2w and t2*). We did not have comparable labels for the rest of the sequences researchers  use, including T1, FLAIR, and DWI. 
+- **Severe class imbalance.** In our labeled dataset, some classes had far more scans than others. A model can post a high accuracy by mostly learning the common class and still fail on the rare ones.
 
 ## Protocol
 
-| Item | Setting |
-|------|---------|
-| Tasks | `type` ∈ {t2w, t2star}, `voi` ∈ {cervical, thoracic, lumbar}, `acq` ∈ {axial, sagittal} |
-| n (in-domain) | 2,646 scans / ~228 subjects |
-| Splits | locked subject-safe 80/10/10; 5-fold CV only inside train |
-| Input (2D track) | 1.5 mm resample → percentile clip + z-score → 3 mid-slices → 224² |
-| Optim | AdamW, class-weighted CE, early stop on val balanced accuracy |
-| Heads | separate per-task networks + multi-head shared backbone |
-| External | spine-generic type evaluation (site-stratified subject sample) |
-| Composite | `0.7 * in_domain_mean_bal_acc + 0.3 * ood_type_mean_bal_acc` |
+
+| Item             | Setting                                                                                 |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| Tasks            | `type` ∈ {t2w, t2star}, `voi` ∈ {cervical, thoracic, lumbar}, `acq` ∈ {axial, sagittal} |
+| n (in-domain)    | 2,646 scans / ~228 subjects                                                             |
+| Splits           | locked subject-safe 80/10/10; 5-fold CV only inside train                               |
+| Input (2D track) | 1.5 mm resample → percentile clip + z-score → 3 mid-slices → 224²                       |
+| Input (3D track) | 1.5 mm resample → percentile clip + z-score → full volume resized to 96×128×128         |
+| Optim            | AdamW, class-weighted CE, early stop on val balanced accuracy                           |
+| Heads            | separate per-task networks + multi-head shared backbone                                 |
+| External         | spine-generic type evaluation (site-stratified subject sample)                          |
+| Composite        | `0.7 * in_domain_mean_bal_acc + 0.3 * ood_type_mean_bal_acc`                            |
+
 
 ## Model roster
 
@@ -41,23 +39,25 @@ These limits shaped every design choice in this benchmark (splits, metrics, and 
 
 **Track B — same protocol, 3D + foundation extension:** full-volume 3D ResNet-18/50, 3D DenseNet-121; frozen mid-slice probes (DINOv2-B, SigLIP2-base, BiomedCLIP). Implemented under a shared registry; smoke-validated locally; full-scale server runs tracked separately from the published Track A ranking.
 
-## Results (Track A)
+## Results
 
-| Rank | Model | Composite bal-acc | OOD type (sep) |
-|-----:|-------|------------------:|---------------:|
-| 1 | ResNet-18 | **0.9919** | **1.000** |
-| 2 | ConvNeXt-Tiny | 0.9910 | 0.985 |
-| 3 | EfficientNet-V2-S | 0.9907 | 0.993 |
+
+| Rank | Model             | Composite bal-acc |
+| ---- | ----------------- | ----------------- |
+| 1    | ResNet-18         | **0.9919**        |
+| 2    | ConvNeXt-Tiny     | 0.9910            |
+| 3    | EfficientNet-V2-S | 0.9907            |
+
 
 ResNet-18: 99.2% composite balanced accuracy; **100%** T2w/T2* balanced accuracy on the external type set (134 scans, separate head). VOI remains the hardest head (DenseNet-121 separate best in-domain VOI).
 
-Full ranking: [`results/aggregate_model_ranking.csv`](results/aggregate_model_ranking.csv)
+Full ranking: `[results/aggregate_model_ranking.csv](results/aggregate_model_ranking.csv)`
 
 ## Interpretation
 
-T2w vs T2* is operationally hard for metadata heuristics and for human triage at scale; the bake-off shows a dedicated mid-slice CNN closes that gap under subject-safe + OOD evaluation. Label coverage is still incomplete for other contrasts (e.g. T1/FLAIR), so this is a **proof of concept for investment in expanded annotation**, not a claim of a universal sequence classifier.
+The models doing well is a good sign, as separating T2w from T2* is difficult even for seasoned MRI researchers. 
 
-Before committing to full supervised training, we also asked whether frozen TotalSegmentator features already separate contrasts — see the **alternative** probe study: [totalsegmentator-probe-study](https://github.com/klasinlapaprechar/totalsegmentator-probe-study). Production integration of learned weights is described in [clinical-dicom2bids-demo](https://github.com/klasinlapaprechar/clinical-dicom2bids-demo).
+On the other hand, label coverage is still incomplete for other contrasts, including T1 and FLAIR. This is a proof that the approach is worth expanding with more annotation.
 
 ## Smoke
 
